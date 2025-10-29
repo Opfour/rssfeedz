@@ -6,8 +6,6 @@ http://stackexchange.com/feeds/questions
 http://rss.cnn.com/rss/cnn_topstories.rss
 https://feeds.bbci.co.uk/news/rss.xml
 https://feeds.bbci.co.uk/news/technology/rss.xml
-http://feeds.reuters.com/Reuters/worldNews
-http://feeds.reuters.com/reuters/technologyNews
 http://feeds.nytimes.com/nyt/rss/HomePage
 http://feeds.nytimes.com/nyt/rss/Technology
 http://www.nytimes.com/services/xml/rss/nyt/Science.xml
@@ -28,10 +26,9 @@ http://feeds.feedburner.com/ItsFoss
 http://feeds.feedburner.com/d0od
 http://www.linuxtoday.com/biglt.rss
 https://www.tecmint.com/feed
-https://www.cyberciti.biz/atom/atom.xml
+https://www.cyberciti.com/atom/atom.xml
 https://www.linuxjournal.com/node/feed
 http://distrowatch.com/news/dw.xml
-https://www.linuxfoundation.org/feed
 https://opensource.com/feed
 http://lwn.net/headlines/newrss
 http://blog.canonical.com/feed
@@ -63,7 +60,6 @@ https://www.reddit.com/r/worldnews/.rss
 https://www.theonion.com/rss
 https://bleedingcool.com/movies/netflix-film/feed/
 https://www.space.com/feeds/all
-http://feeds.feedburner.com/seriouseatsfeaturesvideos
 https://lifehacker.com/rss
 https://harpers.org/feed/
 https://www.youtube.com/feeds/videos.xml?channel_id=UCeeFfhMcJa1kjtfZAGskOCA
@@ -74,7 +70,6 @@ https://www.youtube.com/feeds/videos.xml?channel_id=UC9x0AN7BWHpCDHSm9NiJFJQ
 https://feeds.feedburner.com/TheHackersNews
 https://krebsonsecurity.com/feed/
 https://www.bleepingcomputer.com/feed/
-https://www.darkreading.com/rss_simple.asp
 http://feeds.arstechnica.com/arstechnica/science
 https://www.sciencedaily.com/rss/all.xml
 https://lifehacker.com/rss
