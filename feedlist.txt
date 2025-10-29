@@ -4,7 +4,6 @@ https://hnrss.org/best
 http://serverfault.com/feeds
 http://stackexchange.com/feeds/questions
 http://rss.cnn.com/rss/cnn_topstories.rss
-http://rss.cnn.com/rss/cnn_tech.rss
 https://feeds.bbci.co.uk/news/rss.xml
 https://feeds.bbci.co.uk/news/technology/rss.xml
 http://feeds.reuters.com/Reuters/worldNews
