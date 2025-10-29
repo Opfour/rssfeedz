@@ -1,0 +1,48 @@
+# RSS Feed Auto-Update Cron Job Setup
+# Updates your feed page every 2 hours
+
+## STEP 1: Copy the update script to your rssfeedz directory
+cp update_feeds.sh ~/rssfeedz/
+chmod +x ~/rssfeedz/update_feeds.sh
+
+## STEP 2: Test the script manually first
+cd ~/rssfeedz
+./update_feeds.sh
+
+# Check if it worked:
+tail update.log
+
+## STEP 3: Edit your crontab
+crontab -e
+
+## STEP 4: Add this line to the bottom of the file:
+# Update RSS feeds every 2 hours
+0 */2 * * * /home/david/rssfeedz/update_feeds.sh
+
+## STEP 5: Save and exit
+# In nano: Ctrl+O (save), then Ctrl+X (exit)
+# In vim: Press Esc, then type :wq and press Enter
+
+## STEP 6: Verify the cron job was added
+crontab -l
+
+## WHAT THIS DOES:
+# - Runs at the top of every 2nd hour (12:00am, 2:00am, 4:00am, 6:00am, etc.)
+# - Regenerates your index.html and jumble.html files
+# - Logs updates to ~/rssfeedz/update.log
+
+## ALTERNATIVE SCHEDULES:
+# Every hour:           0 * * * * /home/david/rssfeedz/update_feeds.sh
+# Every 30 minutes:     */30 * * * * /home/david/rssfeedz/update_feeds.sh
+# Every 4 hours:        0 */4 * * * /home/david/rssfeedz/update_feeds.sh
+# Daily at 8am:         0 8 * * * /home/david/rssfeedz/update_feeds.sh
+# Every 15 minutes:     */15 * * * * /home/david/rssfeedz/update_feeds.sh
+
+## TO REMOVE THE CRON JOB:
+# crontab -e
+# Delete the line or comment it out with #
+# Save and exit
+
+## TO CHECK LOGS:
+# tail -f ~/rssfeedz/update.log
+# This shows the last updates in real-time
