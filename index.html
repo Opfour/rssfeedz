@@ -141,17 +141,16 @@
   }
 
   function collectMedia(sections) {
-    var buckets = [], videos = [], seen = {};
+    var buckets = [], seen = {};
     for (var i = 0; i < sections.length; i++) {
       var s = sections[i];
       var bucket = [];
       if (!IMAGE_OK.test((s.domain || '') + ' ' + (s.title || ''))) { buckets.push(bucket); continue; }
       for (var j = 0; j < s.entries.length; j++) {
         var e = s.entries[j];
-        if (!e.image) { continue; }
+        if (!e.image || e.video) { continue; }
         var item = {img: e.image, link: e.link, title: e.title,
-                    src: s.domain || s.title, video: !!e.video};
-        if (e.video) { videos.push(item); continue; }   // video thumbs live in the video strip only
+                    src: s.domain || s.title, video: false};
         if (bucket.length < 2) { bucket.push(item); }
       }
       buckets.push(bucket);
@@ -168,7 +167,7 @@
       depth++;
       if (depth > 4) { break; }
     }
-    return {photos: photos, videos: videos};
+    return {photos: photos};
   }
 
   function strip(items, kind) {
@@ -205,14 +204,21 @@
   function renderGrid(data) {
     var html = '', i, since = 0, photoIdx = 0;
     var media = collectMedia(data.sections);
-    var order = ordered(data.sections), cards = [];
+    var order = ordered(data.sections), textCards = [], videoCards = [];
     for (i = 0; i < order.length; i++) {
-      if (hasWire(order[i])) { html += wireCard(order[i]); } else { cards.push(order[i]); }
+      if (hasWire(order[i])) { html += wireCard(order[i]); }
+      else if (IMAGE_OK.test((order[i].domain || '') + ' ' + (order[i].title || ''))) { videoCards.push(order[i]); }
+      else { textCards.push(order[i]); }
     }
-    // one video row, directly under the wires, so the card grid below runs unbroken
-    if (media.videos.length >= 2) { html += strip(media.videos.slice(0, 3), 'video'); }
-    for (i = 0; i < cards.length; i++) {
-      html += card(cards[i]);
+    // video cards on one unbroken row, hard-broken above and below so a row
+    // never mixes a video card with a text card
+    if (videoCards.length) {
+      html += '<div class="rowbreak"></div>';
+      for (i = 0; i < videoCards.length; i++) { html += card(videoCards[i]); }
+      html += '<div class="rowbreak"></div>';
+    }
+    for (i = 0; i < textCards.length; i++) {
+      html += card(textCards[i]);
       since++;
       if (since === 6 && photoIdx < media.photos.length) {
         html += strip(media.photos.slice(photoIdx, photoIdx + 5), 'photos');

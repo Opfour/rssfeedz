@@ -99,6 +99,8 @@ img { display: block; }
   min-width: 0;
 }
 .card.wide { grid-column: 1 / -1; }
+/* zero-height full-width item: forces the next card onto a fresh grid row */
+.rowbreak { grid-column: 1 / -1; height: 0; margin: 0; padding: 0; }
 
 .card-head {
   display: flex;
