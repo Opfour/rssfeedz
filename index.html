@@ -38,9 +38,9 @@
   var tickerEl = document.getElementById('ticker');
   var updatedEl = document.getElementById('updated');
   var VISIBLE_ROWS = 6;     // rows shown before "more"
-  // Blog and distro feeds whose art is logos, screenshots or stock filler:
-  // they render as text only, so a column never looks half illustrated.
-  var NO_IMAGE = /itsfoss|cyberciti|nixcraft|linuxjournal|opensource\.com|9to5linux|omgubuntu|linuxmint|canonical\.com|ubuntu\.com|raspberrypi/i;
+  // Only image-first and video-first sources get art. Every news, tech, magazine
+  // and subreddit feed renders as text, so the wall stays typographic.
+  var IMAGE_OK = /youtube|youtu\.be|vimeo|flickr|instagram|bigpicture|in-?focus|photo/i;
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -75,7 +75,7 @@
   }
 
   function leadFor(section) {
-    if (NO_IMAGE.test(section.domain || section.title)) { return -1; }
+    if (!IMAGE_OK.test((section.domain || '') + ' ' + (section.title || ''))) { return -1; }
     for (var i = 0; i < section.entries.length; i++) {
       if (section.entries[i].image) { return i; }
     }
@@ -115,7 +115,7 @@
   function wireCard(section) {
     var entries = section.entries.slice();
     var lead = null, rest = [];
-    var allowArt = !NO_IMAGE.test(section.domain || section.title);
+    var allowArt = IMAGE_OK.test((section.domain || '') + ' ' + (section.title || ''));
     for (var i = 0; i < entries.length; i++) {
       if (allowArt && !lead && entries[i].image) { lead = entries[i]; } else { rest.push(entries[i]); }
     }
@@ -145,13 +145,13 @@
     for (var i = 0; i < sections.length; i++) {
       var s = sections[i];
       var bucket = [];
-      if (NO_IMAGE.test(s.domain || s.title)) { buckets.push(bucket); continue; }
+      if (!IMAGE_OK.test((s.domain || '') + ' ' + (s.title || ''))) { buckets.push(bucket); continue; }
       for (var j = 0; j < s.entries.length; j++) {
         var e = s.entries[j];
         if (!e.image) { continue; }
         var item = {img: e.image, link: e.link, title: e.title,
                     src: s.domain || s.title, video: !!e.video};
-        if (e.video) { videos.push(item); }
+        if (e.video) { videos.push(item); continue; }   // video thumbs live in the video strip only
         if (bucket.length < 2) { bucket.push(item); }
       }
       buckets.push(bucket);
@@ -203,21 +203,20 @@
   }
 
   function renderGrid(data) {
-    var html = '', since = 0, photoIdx = 0, videoDone = false;
+    var html = '', i, since = 0, photoIdx = 0;
     var media = collectMedia(data.sections);
-    var order = ordered(data.sections);
-    for (var i = 0; i < order.length; i++) {
-      var s = order[i];
-      html += hasWire(s) ? wireCard(s) : card(s);
+    var order = ordered(data.sections), cards = [];
+    for (i = 0; i < order.length; i++) {
+      if (hasWire(order[i])) { html += wireCard(order[i]); } else { cards.push(order[i]); }
+    }
+    // one video row, directly under the wires, so the card grid below runs unbroken
+    if (media.videos.length >= 2) { html += strip(media.videos.slice(0, 3), 'video'); }
+    for (i = 0; i < cards.length; i++) {
+      html += card(cards[i]);
       since++;
-      var due = since === 3 || since === 9;
-      if (due && photoIdx < media.photos.length) {
+      if (since === 6 && photoIdx < media.photos.length) {
         html += strip(media.photos.slice(photoIdx, photoIdx + 5), 'photos');
         photoIdx += 5;
-        if (!videoDone && media.videos.length >= 2) {
-          html += strip(media.videos.slice(0, 3), 'video');
-          videoDone = true;
-        }
         since = 0;
       }
     }
