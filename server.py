@@ -140,7 +140,10 @@ def entry_image(entry):
         return value
 
     candidates.sort(key=score, reverse=True)
-    return candidates[0][1]
+    for width, url in candidates:
+        if url.lower().startswith(("http://", "https://")):
+            return url
+    return None
 
 
 def entry_is_video(entry):
@@ -293,6 +296,10 @@ def fetch_one(url):
                 for suffix in override["strips"]:
                     t = t.replace(suffix, "").strip()
             if t and l:
+                # only real web links reach the page: a feed must not be able to
+                # hand the front end a javascript: or data: href
+                if not l.lower().startswith(("http://", "https://")):
+                    continue
                 stamp = e.get("published_parsed") or e.get("updated_parsed")
                 try:
                     published = calendar.timegm(stamp) if stamp else None
@@ -465,7 +472,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/":
             path = "/index.html"
         safe = os.path.normpath(os.path.join(HERE, path.lstrip("/")))
-        if not safe.startswith(HERE) or not os.path.isfile(safe):
+        if not safe.startswith(HERE + os.sep) or not os.path.isfile(safe):
             self._send(404, b"not found", "text/plain")
             return
         ctypes = {
