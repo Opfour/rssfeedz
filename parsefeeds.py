@@ -1,106 +1,117 @@
-import feedparser
+"""Static snapshots: static.html (grid) and jumble.html (single column).
+
+Both pages embed the same payload the live server serves and run the same
+renderer, feedcourt-app.js, so the snapshot layout matches the live wall
+instead of drifting away from it. Only the data source differs: the live page
+calls /api/feeds, the snapshots carry the JSON inline.
+"""
+
 import datetime
+import json
+import os
 import socket
-from random import shuffle 
-import re
-import urllib.error
-import urllib.request
+import sys
+import time
+from random import shuffle
 
-from server import site_domain, source_key
+import server
 
-# feedparser has no timeout of its own; a dead host can otherwise stall the cron job
+HERE = os.path.dirname(os.path.abspath(__file__))
+INDEX = os.path.join(HERE, "index.html")
+APP = "feedcourt-app.js"
+
+# feedparser has no timeout of its own; a dead host can otherwise stall cron
 socket.setdefaulttimeout(10)
-feedlist =  open("feedlist.txt", 'r')
-urls, seen = [], set()
-for line in feedlist:
-    url = line.strip()
-    if not url or url.startswith("#"):
-        continue
-    key = source_key(url)
-    if key in seen:
-        continue
-    seen.add(key)
-    urls.append(url)
-#now = datetime.datetime.now().strftime("%A, %d. %B %Y %I:%M%p")
-#now = datetime.datetime.utcnow().isoformat()
-now = datetime.datetime.now(datetime.UTC).isoformat()
-#pattern = re.compile('[\W_]+')
-pattern = re.compile(r'[\W_]+')
-output = """<html>
-        <head><title>Feed Court</title>
-           <meta http-equiv="Content-Type" content="text/html; charset=utf8" />
-           <meta http-equiv="refresh" content="600">
-           <link rel='stylesheet' type='text/css' href='feedcourt.css'>
-           <link href="apple-touch-icon.png" rel="apple-touch-icon" />
-           <link href="apple-touch-icon-76x76.png" rel="apple-touch-icon" sizes="76x76" />
-           <link href="apple-touch-icon-120x120.png" rel="apple-touch-icon" sizes="120x120" />
-           <link href="apple-touch-icon-152x152.png" rel="apple-touch-icon" sizes="152x152" />
-           <link href="apple-touch-icon-180x180.png" rel="apple-touch-icon" sizes="180x180" />
-           <link href="icon-hires.png" rel="icon" sizes="192x192" />
-           <link href="icon-normal.png" rel="icon" sizes="128x128" />
-           <script src='feedcourt.js' type='text/javascript'> </script>
-        </head>
-        <body onload="loadroutine();">
-           <div id='header'><h1>Feed Court</h1>
-                <p> |  a wall of text rss aggregator  |  updated: <span id='utcupdate'>%s</span> | 
-           """ %now
-#init list for jumbling entries  
-all_entries = []
-# make a copy of the header for the jumble page 
-joutput = output
-#start the wrapper divs and header  
-output +="<span class='sorter'><a href='./jumble.html'> jumble </a> </span></p></div> <div id='wrapper'>" 
-joutput +="<span class='sorter'><a href='./'> sort </a></span> </p></div> <div id='jumblewrapper'>" 
-for url in urls:
-    try:
-        req = urllib.request.Request(url, headers={
-            "User-Agent": ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-                           "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"),
-            "Accept": "application/rss+xml, application/atom+xml, application/xml, */*",
-        })
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            f = feedparser.parse(resp.read(4_000_000))
-    except Exception:
-        # skip unreachable or malformed feeds instead of aborting the whole snapshot
-        continue
-    if not f.entries:
-        continue
-    # to debug which feed might be failing, uncomment this
-    #print f['feed']['title']
-    # if f['feed']['title']:
-    title = f.get('feed', {}).get('title', 'Untitled Feed')
-    if title:
-        site = title
-    else:
-        site = 'Untitled Feed'
-    # make id by getting rid of spaces and non-alphanumerics
-    siteid = pattern.sub('', site.strip().replace(" ",""))
-    moreid = "more" + siteid
-    sitelink = f.get('feed', {}).get('link', '#')
-    dom = site_domain(sitelink if sitelink != '#' else url)
-    label = site if (not dom or dom.lower() in site.lower()) else "%s (%s)" % (site, dom)
-    output += """<div class='section' id='%s'>
-                <div class='section_head'>
-                <h2><a href='%s'>%s</a></h2>
-                <div class='more' id='%s'> more </div>
-                </div>""" %(siteid, sitelink, label, moreid)
-    for e in f.entries:
-        # make main page link
-        output += """<div class='entry'>
-                  <a href='%s' target='_blank'>%s</a>
-                  </div>""" %(e.link, e.title)
-        # generate jumble page link for later
-        jumblerow = """<span class='jumble'> <a href='%s' target='_blank'>%s</a><span class='jumblesite'><a href='%s'> ( %s ) </a></span></span> | """ %(e.link, e.title, sitelink, site)
-        all_entries.append(jumblerow)
-    output += "</div>"
-   
-output += "</div><div id='footer'> source code: <a href='https://github.com/bendybendy/feedcourt'> https://github.com/bendybendy/feedcourt </a> </body></html>"
-index = open("static.html", 'w')
-index.write(output)
-# finish the jumble page 
-shuffle(all_entries)                   
-for row in all_entries:   
-    joutput +=row
-joutput += "</div><div id='footer'> source code: <a href='https://github.com/bendybendy/feedcourt'> https://github.com/bendybendy/feedcourt </a> </body></html>"
-index = open("jumble.html", 'w')
-index.write(joutput)
+
+PAUSE = 0.5          # between feeds, keeps Reddit and YouTube from throttling
+REDDIT_PAUSE = 6.0   # anonymous .rss rate limits by IP
+
+
+def collect():
+    """Reuse the live server's cached sections and fetch only what is missing.
+
+    A cold run hammers 98 hosts in a row and Reddit answers with a wall of 429s,
+    which is how the snapshot ended up missing whole sections. feedcache.json
+    already holds the last good copy of every feed, so read that first."""
+    urls = server.load_feeds()
+    server.load_state()
+    cached = server._state.get("sections", {})
+    sections, failed, seen_links = [], [], set()
+    started = time.time()
+    fetched = reused = 0
+    for url in urls:
+        section = cached.get(url)
+        if section:
+            reused += 1
+        else:
+            try:
+                _, section = server.fetch_one(url)
+            except Exception as exc:                  # noqa: BLE001 - one feed must not stop the run
+                print("  fail %s: %s" % (url, exc))
+                section = None
+            if section:
+                fetched += 1
+            time.sleep(REDDIT_PAUSE if server.is_reddit(url) else PAUSE)
+        if not section:
+            failed.append(url)
+            continue
+        link_key = (section.get("link") or "").rstrip("/").lower()
+        if link_key and link_key in seen_links:
+            continue                                  # same site behind two feed URLs
+        seen_links.add(link_key)
+        sections.append(server.normalize_section(url, section))
+    print("reused %d cached sections, fetched %d" % (reused, fetched))
+    return {
+        "updated": datetime.datetime.now(datetime.UTC).isoformat(),
+        "elapsed": round(time.time() - started, 1),
+        "feeds_total": len(urls),
+        "feeds_ok": len(sections),
+        "stale": 0,
+        "failed": failed,
+        "sections": sections,
+    }
+
+
+def page(payload, view):
+    """index.html with the payload inlined: same markup, same renderer."""
+    html = open(INDEX, encoding="utf-8").read()
+    if '<meta http-equiv="refresh"' not in html:
+        html = html.replace(
+            '<title>Feed Court</title>',
+            '<title>Feed Court</title>\n  <meta http-equiv="refresh" content="600">',
+        )
+    # the live page asks the server whether this was a hard reload; a file with
+    # no server behind it has nothing to ask
+    html = html.replace(
+        '<script>window.__freshBoot = (function(){ try { return __FRESH_BOOT__; } '
+        'catch (e) { return false; } })();</script>', ""
+    )
+    blob = json.dumps(payload).replace("</", "<\\/")
+    inject = '<script id="payload" type="application/json">%s</script>\n' % blob
+    if view == "wire":
+        inject += '<script>window.__VIEW__ = "wire";</script>\n'
+    html = html.replace('<script src="%s"></script>' % APP, inject + '<script src="%s"></script>' % APP)
+    return html
+
+
+def write(name, html):
+    path = os.path.join(HERE, name)
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(html)
+    print("wrote %s (%d bytes)" % (name, len(html)))
+
+
+def main():
+    payload = collect()
+    print("feeds ok %d/%d, failed %d, %.1fs" % (
+        payload["feeds_ok"], payload["feeds_total"], len(payload["failed"]), payload["elapsed"]))
+    write("static.html", page(payload, "grid"))
+    # jumble keeps the shuffled single column the old snapshot had
+    shuffled = dict(payload, sections=payload["sections"][:])
+    shuffle(shuffled["sections"])
+    write("jumble.html", page(shuffled, "wire"))
+    return 0 if payload["sections"] else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

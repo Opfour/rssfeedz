@@ -331,6 +331,18 @@ def fetch_one(url):
         return url, None
 
 
+def normalize_section(url, section):
+    """Label a fetched section the way the wall expects: subreddits get r/name
+    and no domain badge, everything else gets its short domain. Shared by the
+    live build and the static snapshots so both render headings identically."""
+    if is_reddit(url):
+        label = reddit_label(url)
+        return dict(section, title=label, domain="", id=_idpattern.sub("", label))
+    if not section.get("domain"):
+        return dict(section, domain=site_domain(section.get("link") or url))
+    return section
+
+
 def build():
     feeds = load_feeds()
     started = time.time()
@@ -368,12 +380,7 @@ def build():
         if link_key and link_key in seen_links:
             continue  # second feed URL pointing at the same site, e.g. a feedburner alias
         seen_links.add(link_key)
-        if is_reddit(url):
-            label = reddit_label(url)
-            section = dict(section, title=label, domain="",
-                           id=_idpattern.sub("", label))
-        elif not section.get("domain"):
-            section = dict(section, domain=site_domain(section.get("link") or url))
+        section = normalize_section(url, section)
         if url not in fresh:
             stale += 1
             section = dict(section, stale=True)
