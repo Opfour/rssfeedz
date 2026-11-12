@@ -267,7 +267,13 @@
       if (!s.entries.length || NEWS.test(s.domain)) { continue; }
       items.push('<a href="' + esc(s.entries[0].link) + '" target="_blank">' + esc(s.entries[0].title) + '</a>');
     }
-    tickerEl.innerHTML = items.join('<span class="sep">·</span>');
+    if (!items.length) { tickerEl.innerHTML = ''; return; }
+    var line = items.join('<span class="sep">·</span>') + '<span class="sep">·</span>';
+    tickerEl.innerHTML =
+      '<div class="ticker-track">' + line + '</div>' +
+      '<div class="ticker-track" aria-hidden="true">' + line + '</div>';
+    var width = tickerEl.firstChild.scrollWidth || 1200;
+    tickerEl.style.setProperty('--dur', Math.max(20, Math.round(width / 55)) + 's');
   }
 
   function showStatus(data) {
