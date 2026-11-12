@@ -68,16 +68,26 @@ runs it.
 
 ## Layout rules (index.html)
 
-- text only by default: `IMAGE_OK` is an allow list, not a deny list. Only
-  image-first and video-first sources (YouTube, Vimeo, photo feeds) render
-  art; every news, tech, magazine and subreddit card carries no image and no
-  row thumbnails
+- text only for news: two allow lists decide who gets art. `IMAGE_OK` (video
+  first: YouTube, Vimeo) gets a lead frame inside its card. `PHOTO` (PetaPixel,
+  Colossal, Universe Today, r/pics, r/spaceporn, Flickr, Imgur, APOD) never
+  renders as a card at all: those feeds exist only to fill the photo strips.
+  Every news, tech, magazine and subreddit card stays pure text
+- media is scattered, not stacked: `renderGrid` walks the text cards and after
+  every `INSERT_EVERY` cards (12, i.e. four rows) drops in one full width item,
+  alternating photo strip then video row. The interval must stay a multiple of
+  three or the wall gets a hole, and the wires stay above all of it
 - video cards render on full rows of three, freshest first, and are capped to
-  a multiple of three (`renderGrid`, `.rowbreak` forces the row break). Keep
+  a multiple of three (`videoRow`, `.rowbreak` forces the row break). Keep
   YouTube feeds in multiples of three: surplus feeds are held back rather
   than leaving a partial row, and a card row never mixes video with text
+- photo strips are capped to the number of slots the wall will actually use
+  (`slots`), otherwise the tail loop stacks every leftover image at the bottom
 - YouTube Atom feeds return intermittent 404/500, so `fetch_bytes` retries
-  `youtube.com/feeds` three times with backoff; expect channel gaps without it
+  `youtube.com/feeds` three times with long backoff; expect channel gaps
+  without it, and the warm loop below fills them
+- `image_is_junk` must never match a bare word that appears in host names: it
+  used to drop every image on petapixel.com because of a plain `pixel` entry
 - typography for readability: 17.5px body, near-white ink, secondary text
   never below `--dim`; colors and base size are the variables and `font:` line
   at the top of `feedcourt.css`
@@ -88,6 +98,17 @@ runs it.
 2. Restart the service if you changed code, reload the page for new feeds
 3. Static: `python3 parsefeeds.py`, open `static.html`
 4. Automate: `update_feeds.sh` in crontab (every 4 hours, already installed)
+
+Recovery: `warm_missing()` runs in a loop every 600s and retries any feed with
+no cached section. Reddit is deliberately slow (`WARM_REDDIT_PER_CYCLE = 3`,
+`REDDIT_WARM_DELAY = 20s`) because anonymous `.rss` rate limits by IP: fetching
+sixteen subreddits at once earns a wall of 429s and, on a cold cache, drops
+whole sections. It only invalidates the page cache when something was actually
+recovered.
+
+Bumping `STATE_VERSION` wipes every cached section, so the next rebuild is a
+cold fetch of all ~98 feeds and rate limiters will bite. Expect a partial page
+for the first few minutes and let the warm loop finish.
 
 
 ## Git Recon (run before reading code)
