@@ -1,5 +1,5 @@
 # RSS Feed Auto-Update Cron Job Setup
-# Updates your feed page every 2 hours
+# Updates your feed page every 4 hours
 
 ## STEP 1: Copy the update script to your rssfeedz directory
 cp update_feeds.sh ~/rssfeedz/
@@ -16,8 +16,8 @@ tail update.log
 crontab -e
 
 ## STEP 4: Add this line to the bottom of the file:
-# Update RSS feeds every 2 hours
-0 */2 * * * /home/david/rssfeedz/update_feeds.sh
+# Update RSS feeds every 4 hours
+0 */4 * * * /home/david/rssfeedz/update_feeds.sh
 
 ## STEP 5: Save and exit
 # In nano: Ctrl+O (save), then Ctrl+X (exit)

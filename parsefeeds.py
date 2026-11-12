@@ -1,7 +1,13 @@
 import feedparser
 import datetime
+import socket
 from random import shuffle 
 import re
+import urllib.error
+import urllib.request
+
+# feedparser has no timeout of its own; a dead host can otherwise stall the cron job
+socket.setdefaulttimeout(10)
 feedlist =  open("feedlist.txt", 'r')
 #now = datetime.datetime.now().strftime("%A, %d. %B %Y %I:%M%p")
 #now = datetime.datetime.utcnow().isoformat()
@@ -34,7 +40,22 @@ joutput = output
 output +="<span class='sorter'><a href='./jumble.html'> jumble </a> </span></p></div> <div id='wrapper'>" 
 joutput +="<span class='sorter'><a href='./'> sort </a></span> </p></div> <div id='jumblewrapper'>" 
 for url in feedlist:
-    f = feedparser.parse(url)
+    url = url.strip()
+    if not url or url.startswith("#"):
+        continue
+    try:
+        req = urllib.request.Request(url, headers={
+            "User-Agent": ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                           "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"),
+            "Accept": "application/rss+xml, application/atom+xml, application/xml, */*",
+        })
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            f = feedparser.parse(resp.read(4_000_000))
+    except Exception:
+        # skip unreachable or malformed feeds instead of aborting the whole snapshot
+        continue
+    if not f.entries:
+        continue
     # to debug which feed might be failing, uncomment this
     #print f['feed']['title']
     # if f['feed']['title']:
@@ -63,7 +84,7 @@ for url in feedlist:
     output += "</div>"
    
 output += "</div><div id='footer'> source code: <a href='https://github.com/bendybendy/feedcourt'> https://github.com/bendybendy/feedcourt </a> </body></html>"
-index = open("index.html", 'w')
+index = open("static.html", 'w')
 index.write(output)
 # finish the jumble page 
 shuffle(all_entries)                   

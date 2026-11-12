@@ -1,3 +1,13 @@
 # OpenClaw credentials
 .openclaw/
 openclaw.json
+
+# runtime
+__pycache__/
+feedcache.json
+feedcache.json.tmp
+update.log
+
+# dated snapshots of generated pages
+backups/
+static.html
