@@ -6,9 +6,21 @@ import re
 import urllib.error
 import urllib.request
 
+from server import site_domain, source_key
+
 # feedparser has no timeout of its own; a dead host can otherwise stall the cron job
 socket.setdefaulttimeout(10)
 feedlist =  open("feedlist.txt", 'r')
+urls, seen = [], set()
+for line in feedlist:
+    url = line.strip()
+    if not url or url.startswith("#"):
+        continue
+    key = source_key(url)
+    if key in seen:
+        continue
+    seen.add(key)
+    urls.append(url)
 #now = datetime.datetime.now().strftime("%A, %d. %B %Y %I:%M%p")
 #now = datetime.datetime.utcnow().isoformat()
 now = datetime.datetime.now(datetime.UTC).isoformat()
@@ -39,10 +51,7 @@ joutput = output
 #start the wrapper divs and header  
 output +="<span class='sorter'><a href='./jumble.html'> jumble </a> </span></p></div> <div id='wrapper'>" 
 joutput +="<span class='sorter'><a href='./'> sort </a></span> </p></div> <div id='jumblewrapper'>" 
-for url in feedlist:
-    url = url.strip()
-    if not url or url.startswith("#"):
-        continue
+for url in urls:
     try:
         req = urllib.request.Request(url, headers={
             "User-Agent": ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
@@ -68,11 +77,13 @@ for url in feedlist:
     siteid = pattern.sub('', site.strip().replace(" ",""))
     moreid = "more" + siteid
     sitelink = f.get('feed', {}).get('link', '#')
+    dom = site_domain(sitelink if sitelink != '#' else url)
+    label = site if (not dom or dom.lower() in site.lower()) else "%s (%s)" % (site, dom)
     output += """<div class='section' id='%s'>
                 <div class='section_head'>
                 <h2><a href='%s'>%s</a></h2>
                 <div class='more' id='%s'> more </div>
-                </div>""" %(siteid, sitelink, site, moreid)
+                </div>""" %(siteid, sitelink, label, moreid)
     for e in f.entries:
         # make main page link
         output += """<div class='entry'>

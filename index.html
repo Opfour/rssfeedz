@@ -50,10 +50,14 @@
     var html = '';
     for (var i = 0; i < sections.length; i++) {
       var s = sections[i];
-      var id = siteId(s.title);
+      var dom = s.domain || '';
+      var label = (dom && s.title.toLowerCase().indexOf(dom.toLowerCase()) === -1)
+        ? s.title + ' (' + dom + ')'
+        : s.title;
+      var id = siteId(s.title + dom);
       html += "<div class='section' id='" + esc(id) + "'>" +
               "<div class='section_head'>" +
-              "<h2><a href='" + esc(s.link) + "'>" + esc(s.title) + "</a></h2>" +
+              "<h2><a href='" + esc(s.link) + "'>" + esc(label) + "</a></h2>" +
               "<div class='more' id='more" + esc(id) + "'> more </div>" +
               "</div>";
       for (var j = 0; j < s.entries.length; j++) {
@@ -76,7 +80,7 @@
         var e = s.entries[j];
         rows.push("<span class='jumble'> <a href='" + esc(e.link) + "' target='_blank'>" +
                   esc(e.title) + "</a><span class='jumblesite'><a href='" + esc(s.link) +
-                  "'> ( " + esc(s.title) + " ) </a></span></span> | ");
+                  "'> ( " + esc(s.domain || s.title) + " ) </a></span></span> | ");
       }
     }
     for (var k = rows.length - 1; k > 0; k--) {

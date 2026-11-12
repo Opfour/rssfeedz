@@ -1,17 +1,10 @@
 https://news.ycombinator.com/rss
-https://hnrss.org/frontpage
-https://hnrss.org/best
 https://serverfault.com/feeds
 https://stackexchange.com/feeds/questions
 http://rss.cnn.com/rss/cnn_topstories.rss
 https://feeds.bbci.co.uk/news/rss.xml
-https://feeds.bbci.co.uk/news/technology/rss.xml
 https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml
-https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml
-https://rss.nytimes.com/services/xml/rss/nyt/Science.xml
-https://rss.nytimes.com/services/xml/rss/nyt/Arts.xml
 https://www.theguardian.com/world/rss
-https://www.theguardian.com/us/technology/rss
 https://feeds.npr.org/1001/rss.xml
 https://www.aljazeera.com/xml/rss/all.xml
 https://feeds.washingtonpost.com/rss/national
@@ -19,7 +12,6 @@ https://feeds.feedburner.com/TheAtlantic
 https://www.newyorker.com/feed/everything
 http://www.phoronix.com/rss.php
 https://feed.itsfoss.com/
-http://feeds.feedburner.com/d0od
 https://www.tecmint.com/feed
 https://www.cyberciti.com/atom/atom.xml
 https://www.linuxjournal.com/node/feed
@@ -60,13 +52,10 @@ https://www.youtube.com/feeds/videos.xml?channel_id=UCXuqSBlHAE6Xw-yeJA0Tunw
 https://www.youtube.com/feeds/videos.xml?channel_id=UCxQKHvKbmSzGMvUrVtJYnUA
 https://feeds.feedburner.com/TheHackersNews
 https://krebsonsecurity.com/feed/
-https://feeds.arstechnica.com/arstechnica/science
 https://www.sciencedaily.com/rss/all.xml
-https://www.wired.com/feed/category/science/latest/rss
 # new sources added 2026-11-11
 https://www.theregister.com/headlines.atom
 https://techcrunch.com/feed/
-https://www.wired.com/feed/category/security/latest/rss
 https://www.schneier.com/feed/atom/
 https://www.quantamagazine.org/feed/
 https://simonwillison.net/atom/everything/

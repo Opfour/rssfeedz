@@ -53,9 +53,53 @@ def is_reddit(url):
     return "reddit.com" in urlparse(url).netloc.lower()
 
 
+def reddit_label(url):
+    """Short heading for a subreddit: r/linux, not the feed's long title."""
+    match = re.search(r"/r/([^/]+)", url, re.I)
+    return "r/" + match.group(1) if match else "reddit"
+
+
+# Domain suffixes where the registrable part is three labels, not two.
+TWO_LEVEL_SUFFIXES = {
+    "co.uk", "org.uk", "ac.uk", "gov.uk", "co.jp", "co.nz", "co.za",
+    "com.au", "com.br", "com.cn", "co.in", "com.mx", "co.il",
+}
+
+
+def site_domain(url):
+    """Short domain for a heading: no scheme, no www, no subdomains."""
+    host = urlparse(url).netloc.lower().split(":")[0]
+    if host.startswith("www."):
+        host = host[4:]
+    parts = host.split(".")
+    if len(parts) >= 3 and ".".join(parts[-2:]) in TWO_LEVEL_SUFFIXES:
+        return ".".join(parts[-3:])
+    return ".".join(parts[-2:]) if len(parts) >= 2 else host
+
+
+def source_key(url):
+    """One feed per source, except where the path or query names the source."""
+    host = urlparse(url).netloc.lower()
+    if "reddit.com" in host:
+        return host + urlparse(url).path.lower()
+    if "youtube.com" in host:
+        return url.lower()
+    if "feedburner" in host or "feedproxy" in host:
+        return url.lower()
+    return site_domain(url)
+
+
 def load_feeds():
     with open(FEEDLIST) as fh:
-        return [ln.strip() for ln in fh if ln.strip() and not ln.startswith("#")]
+        raw = [ln.strip() for ln in fh if ln.strip() and not ln.startswith("#")]
+    seen, feeds = set(), []
+    for url in raw:
+        key = source_key(url)
+        if key in seen:
+            continue
+        seen.add(key)
+        feeds.append(url)
+    return feeds
 
 
 def load_state():
@@ -128,6 +172,7 @@ def fetch_one(url):
             "id": _idpattern.sub("", title.replace(" ", "")),
             "title": title,
             "link": link,
+            "domain": site_domain(link or url),
             "entries": entries,
         }
     except Exception as exc:
@@ -162,11 +207,22 @@ def build():
                 cooldowns[url] = now + (REDDIT_COOLDOWN if is_reddit(url) else COOLDOWN)
 
     sections, failed, stale = [], [], 0
+    seen_links = set()
     for url in feeds:
         section = fresh.get(url) or _state["sections"].get(url)
         if not section:
             failed.append(url)
             continue
+        link_key = (section.get("link") or "").rstrip("/").lower()
+        if link_key and link_key in seen_links:
+            continue  # second feed URL pointing at the same site, e.g. a feedburner alias
+        seen_links.add(link_key)
+        if is_reddit(url):
+            label = reddit_label(url)
+            section = dict(section, title=label, domain="",
+                           id=_idpattern.sub("", label))
+        elif not section.get("domain"):
+            section = dict(section, domain=site_domain(section.get("link") or url))
         if url not in fresh:
             stale += 1
             section = dict(section, stale=True)
