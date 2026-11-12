@@ -43,6 +43,22 @@ python3 parsefeeds.py               # Static snapshot (static.html, jumble.html)
   (per feed path)
 - `site_domain()` strips scheme, `www`, and subdomains for headings
 
+## Layout rules (index.html)
+
+- text only by default: `IMAGE_OK` is an allow list, not a deny list. Only
+  image-first and video-first sources (YouTube, Vimeo, photo feeds) render
+  art; every news, tech, magazine and subreddit card carries no image and no
+  row thumbnails
+- video cards render on full rows of three, freshest first, and are capped to
+  a multiple of three (`renderGrid`, `.rowbreak` forces the row break). Keep
+  YouTube feeds in multiples of three: surplus feeds are held back rather
+  than leaving a partial row, and a card row never mixes video with text
+- YouTube Atom feeds return intermittent 404/500, so `fetch_bytes` retries
+  `youtube.com/feeds` three times with backoff; expect channel gaps without it
+- typography for readability: 17.5px body, near-white ink, secondary text
+  never below `--dim`; colors and base size are the variables and `font:` line
+  at the top of `feedcourt.css`
+
 ## Workflow
 
 1. Edit feeds: modify `feedlist.txt`
