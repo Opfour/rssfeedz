@@ -37,8 +37,10 @@
   var gridEl = document.getElementById('grid');
   var tickerEl = document.getElementById('ticker');
   var updatedEl = document.getElementById('updated');
-  var THUMB_ROWS = 2;      // rows near the top of a card that get a thumbnail
   var VISIBLE_ROWS = 6;     // rows shown before "more"
+  // Blog and distro feeds whose art is logos, screenshots or stock filler:
+  // they render as text only, so a column never looks half illustrated.
+  var NO_IMAGE = /itsfoss|cyberciti|nixcraft|linuxjournal|opensource\.com|9to5linux|omgubuntu|linuxmint|canonical\.com|ubuntu\.com|raspberrypi/i;
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -72,22 +74,8 @@
            '" alt="" onerror="this.style.visibility=\'hidden\'">';
   }
 
-  function rowsFor(section) {
-    var rows = '';
-    var entries = section.entries;
-    for (var i = 0; i < entries.length; i++) {
-      var e = entries[i];
-      var thumb = (i < THUMB_ROWS && e.image) ? imgTag(e.image, 'thumb') : '';
-      var hidden = i >= VISIBLE_ROWS ? ' class="row extra"' : ' class="row"';
-      rows += '<a' + hidden + ' href="' + esc(e.link) + '" target="_blank" rel="noopener">' +
-              '<span class="row-t">' + esc(e.title) + '</span>' +
-              (e.video ? '<span class="play" title="video">▶</span>' : '') +
-              thumb + '</a>';
-    }
-    return rows;
-  }
-
   function leadFor(section) {
+    if (NO_IMAGE.test(section.domain || section.title)) { return -1; }
     for (var i = 0; i < section.entries.length; i++) {
       if (section.entries[i].image) { return i; }
     }
@@ -115,21 +103,21 @@
     var rows = '';
     for (var i = 0; i < entries.length; i++) {
       var x = entries[i];
-      var thumb = (i < THUMB_ROWS && x.image) ? imgTag(x.image, 'thumb') : '';
       rows += '<a class="row' + (i >= VISIBLE_ROWS ? ' extra' : '') + '" href="' + esc(x.link) +
               '" target="_blank" rel="noopener"><span class="row-t">' + esc(x.title) + '</span>' +
-              (x.video ? '<span class="play" title="video">▶</span>' : '') + thumb + '</a>';
+              (x.video ? '<span class="play" title="video">▶</span>' : '') + '</a>';
     }
 
     return '<article class="card" data-id="' + esc(section.id) + '">' + head + leadHtml +
            '<div class="rows">' + rows + '</div></article>';
   }
 
-  function reutersCard(section) {
+  function wireCard(section) {
     var entries = section.entries.slice();
     var lead = null, rest = [];
+    var allowArt = !NO_IMAGE.test(section.domain || section.title);
     for (var i = 0; i < entries.length; i++) {
-      if (!lead && entries[i].image) { lead = entries[i]; } else { rest.push(entries[i]); }
+      if (allowArt && !lead && entries[i].image) { lead = entries[i]; } else { rest.push(entries[i]); }
     }
     var html = '<article class="card wide reuters' + (lead ? '' : ' noimg') + '">' +
       '<div class="card-head">' + badge(section.domain, section.title) +
@@ -142,7 +130,7 @@
         '<span class="when">' + ago(lead.published) + '</span></a>';
     }
     html += '<div class="reuters-list">';
-    for (var j = 0; j < rest.length && j < 18; j++) {
+    for (var j = 0; j < rest.length && j < 12; j++) {
       var e = rest[j];
       html += '<a class="wire-row" href="' + esc(e.link) + '" target="_blank" rel="noopener">' +
         '<span class="when">' + ago(e.published) + '</span>' +
@@ -157,6 +145,7 @@
     for (var i = 0; i < sections.length; i++) {
       var s = sections[i];
       var bucket = [];
+      if (NO_IMAGE.test(s.domain || s.title)) { buckets.push(bucket); continue; }
       for (var j = 0; j < s.entries.length; j++) {
         var e = s.entries[j];
         if (!e.image) { continue; }
@@ -196,12 +185,21 @@
       (kind === 'video' ? 'video' : 'photos') + '</div><div class="strip-grid">' + cells + '</div></section>';
   }
 
+  var WIRE = /reuters|apnews/i;
+
+  function rank(section) {
+    var key = (section.domain || '') + ' ' + (section.title || '');
+    if (/reuters/i.test(key)) { return 0; }
+    if (/apnews/i.test(key)) { return 1; }
+    return 2;
+  }
+
+  function hasWire(section) {
+    return WIRE.test((section.domain || '') + ' ' + (section.title || ''));
+  }
+
   function ordered(sections) {
-    return sections.slice().sort(function (a, b) {
-      var ra = /reuters/i.test(a.domain + a.title) ? 0 : 1;
-      var rb = /reuters/i.test(b.domain + b.title) ? 0 : 1;
-      return ra - rb;
-    });
+    return sections.slice().sort(function (a, b) { return rank(a) - rank(b); });
   }
 
   function renderGrid(data) {
@@ -210,7 +208,7 @@
     var order = ordered(data.sections);
     for (var i = 0; i < order.length; i++) {
       var s = order[i];
-      html += /reuters/i.test(s.domain + s.title) ? reutersCard(s) : card(s);
+      html += hasWire(s) ? wireCard(s) : card(s);
       since++;
       var due = since === 3 || since === 9;
       if (due && photoIdx < media.photos.length) {
@@ -253,7 +251,7 @@
     gridEl.innerHTML = html;
   }
 
-  var NEWS = /reuters|cnn|bbc|nytimes|guardian|npr|apnews|washingtonpost|wsj|aljazeera|axios|politico|thehill/i;
+  var NEWS = /reuters|apnews|cnn|bbc|nytimes|guardian|npr|washingtonpost|wsj|aljazeera|axios|politico|thehill/i;
 
   function renderTicker(data) {
     var items = [], order = ordered(data.sections), i, s;

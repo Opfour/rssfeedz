@@ -182,13 +182,6 @@ img { display: block; }
 .card.open .row.extra { display: flex; }
 .row-t { flex: 1 1 auto; min-width: 0; }
 .row:hover .row-t { color: #fff; }
-.thumb {
-  width: 58px; height: 58px;
-  object-fit: cover;
-  border-radius: 3px;
-  flex: none;
-  background: var(--panel);
-}
 .play {
   color: var(--accent);
   font-size: 11px;
@@ -338,6 +331,5 @@ img { display: block; }
   .reuters-body { grid-template-columns: 1fr; gap: 12px; }
   .strip-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .strip.video .strip-grid { grid-template-columns: 1fr; }
-  .thumb { width: 72px; height: 72px; }
   .foot { padding: 0 16px 24px; }
 }

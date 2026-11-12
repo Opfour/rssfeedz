@@ -56,15 +56,23 @@ def is_reddit(url):
 
 
 def feed_override(url):
-    """A few feeds need a short label: Reuters arrives through Google News."""
+    """A few feeds need a short label: Reuters and AP arrive through Google News."""
     plain = unquote(url)
-    if "news.google.com/rss/search" in plain and "site:reuters.com" in plain:
-        return {
-            "title": "Reuters",
-            "link": "https://www.reuters.com/",
-            "domain": "reuters.com",
-            "strip": " - Reuters",
-        }
+    if "news.google.com/rss/search" in plain:
+        if "site:reuters.com" in plain:
+            return {
+                "title": "Reuters",
+                "link": "https://www.reuters.com/",
+                "domain": "reuters.com",
+                "strips": (" - Reuters",),
+            }
+        if "site:apnews.com" in plain:
+            return {
+                "title": "AP News",
+                "link": "https://apnews.com/",
+                "domain": "apnews.com",
+                "strips": (" - AP News", " - AP"),
+            }
     return None
 
 
@@ -267,8 +275,9 @@ def fetch_one(url):
         for e in (raw_entries or [])[:MAX_ENTRIES]:
             t = str(e.get("title") or "").strip()
             l = str(e.get("link") or "").strip()
-            if override and override.get("strip"):
-                t = t.replace(override["strip"], "").strip()
+            if override and override.get("strips"):
+                for suffix in override["strips"]:
+                    t = t.replace(suffix, "").strip()
             if t and l:
                 stamp = e.get("published_parsed") or e.get("updated_parsed")
                 try:

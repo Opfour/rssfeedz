@@ -4,6 +4,7 @@ https://stackexchange.com/feeds/questions
 http://rss.cnn.com/rss/cnn_topstories.rss
 https://feeds.bbci.co.uk/news/rss.xml
 https://news.google.com/rss/search?q=site%3Areuters.com&hl=en-US&gl=US&ceid=US:en
+https://news.google.com/rss/search?q=site%3Aapnews.com&hl=en-US&gl=US&ceid=US:en
 https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml
 https://www.theguardian.com/world/rss
 https://feeds.npr.org/1001/rss.xml
