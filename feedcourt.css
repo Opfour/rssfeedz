@@ -2,11 +2,11 @@
 :root {
   --bg: #0f1318;
   --panel: #161c23;
-  --ink: #ece9e1;
-  --dim: #8b949e;
-  --faint: #5d6672;
+  --ink: #f4f2ec;
+  --dim: #c6cfd9;
+  --faint: #949eaa;
   --accent: #f2b749;
-  --line: rgba(255, 255, 255, 0.10);
+  --line: rgba(255, 255, 255, 0.14);
 }
 
 * { box-sizing: border-box; }
@@ -15,7 +15,7 @@ html, body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
-  font: 15.5px/1.42 system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font: 17.5px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -40,7 +40,7 @@ img { display: block; }
 }
 .views { display: flex; gap: 4px; }
 .views a {
-  font-size: 14px;
+  font-size: 15px;
   padding: 4px 12px;
   border-radius: 999px;
   color: var(--dim);
@@ -48,14 +48,14 @@ img { display: block; }
 }
 .views a:hover { color: var(--ink); border-color: var(--line); }
 .views a.on { background: var(--panel); color: var(--ink); border-color: var(--line); }
-.stamp { margin-left: auto; color: var(--faint); font-size: 13px; }
+.stamp { margin-left: auto; color: var(--dim); font-size: 14px; }
 
 /* headline ticker */
 .ticker {
   display: flex;
   padding: 8px 24px 12px;
   border-bottom: 1px solid var(--line);
-  font-size: 14px;
+  font-size: 16px;
   color: var(--dim);
   overflow: hidden;
   white-space: nowrap;
@@ -119,7 +119,7 @@ img { display: block; }
 }
 .card-head h2 {
   margin: 0;
-  font-size: 16px;
+  font-size: 18.5px;
   font-weight: 700;
   letter-spacing: 0.01em;
   text-transform: none;
@@ -128,9 +128,9 @@ img { display: block; }
 }
 .card-head h2 a { display: inline-flex; align-items: baseline; gap: 7px; flex-wrap: wrap; }
 .dom {
-  font-size: 11.5px;
+  font-size: 13px;
   font-weight: 500;
-  color: var(--faint);
+  color: var(--dim);
   letter-spacing: 0.01em;
 }
 .more {
@@ -139,7 +139,7 @@ img { display: block; }
   border: 1px solid var(--line);
   color: var(--dim);
   font: inherit;
-  font-size: 11.5px;
+  font-size: 13px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   padding: 2px 8px;
@@ -160,7 +160,7 @@ img { display: block; }
 .lead-t {
   display: block;
   padding: 7px 0 4px;
-  font-size: 17px;
+  font-size: 19px;
   font-weight: 650;
   line-height: 1.25;
 }
@@ -172,10 +172,10 @@ img { display: block; }
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  padding: 7px 0;
+  padding: 8px 0;
   border-bottom: 1px dotted var(--line);
-  font-size: 15px;
-  line-height: 1.3;
+  font-size: 17.5px;
+  line-height: 1.38;
 }
 .row:last-child { border-bottom: 0; }
 .row.extra { display: none; }
@@ -196,7 +196,7 @@ img { display: block; }
 }
 
 /* Reuters front page */
-.reuters .card-head h2 { font-size: 18px; }
+.reuters .card-head h2 { font-size: 20px; }
 .reuters-body {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 2fr);
@@ -204,13 +204,13 @@ img { display: block; }
   padding-top: 6px;
 }
 .reuters-lead .lead-img { aspect-ratio: 16 / 9; }
-.reuters-lead .lead-t { font-size: 20px; }
+.reuters-lead .lead-t { font-size: 22px; }
 .reuters .when {
-  color: var(--faint);
-  font-size: 11.5px;
+  color: var(--dim);
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
   flex: none;
-  width: 30px;
+  width: 34px;
   padding-top: 3px;
 }
 .reuters-list { display: block; }
@@ -221,10 +221,10 @@ img { display: block; }
   display: flex;
   gap: 10px;
   align-items: flex-start;
-  padding: 7px 0;
+  padding: 8px 0;
   border-bottom: 1px dotted var(--line);
-  font-size: 15px;
-  line-height: 1.3;
+  font-size: 17.5px;
+  line-height: 1.38;
 }
 .wire-row:last-child { border-bottom: 0; }
 .wire-src {
@@ -244,10 +244,10 @@ img { display: block; }
   border-bottom: 1px solid var(--line);
 }
 .strip-head {
-  font-size: 11.5px;
+  font-size: 13px;
   text-transform: uppercase;
   letter-spacing: 0.14em;
-  color: var(--faint);
+  color: var(--dim);
   padding: 4px 0 9px;
 }
 .strip-grid {
@@ -268,28 +268,28 @@ img { display: block; }
 .cap {
   display: block;
   padding-top: 6px;
-  font-size: 13px;
-  line-height: 1.25;
+  font-size: 15px;
+  line-height: 1.3;
   color: var(--ink);
   max-height: 3.2em;
   overflow: hidden;
 }
 .cap-src {
   display: block;
-  font-size: 11px;
-  color: var(--faint);
+  font-size: 12.5px;
+  color: var(--dim);
   padding-top: 2px;
 }
 .shot:hover .cap { color: #fff; }
 
 .foot {
-  color: var(--faint);
-  font-size: 12.5px;
+  color: var(--dim);
+  font-size: 14px;
   padding: 0 24px 30px;
   max-width: 1600px;
   margin: 0 auto;
 }
-.foot a { color: var(--dim); }
+.foot a { color: var(--ink); }
 
 /* legacy markup kept for static.html */
 #wrapper, #jumblewrapper {
@@ -322,12 +322,12 @@ img { display: block; }
   .strip-grid .shot:nth-child(n+4) { display: none; }
 }
 @media (max-width: 760px) {
-  body { font-size: 17px; }
+  body { font-size: 19px; }
   .grid { grid-template-columns: 1fr; padding: 12px 16px 30px; gap: 4px; }
   .top { padding: 12px 16px 6px; gap: 10px; }
-  .ticker { padding: 6px 16px 10px; }
-  .row, .wire-row { font-size: 17px; }
-  .lead-t { font-size: 19px; }
+  .ticker { padding: 6px 16px 10px; font-size: 17px; }
+  .row, .wire-row { font-size: 19px; }
+  .lead-t { font-size: 21px; }
   .reuters-body { grid-template-columns: 1fr; gap: 12px; }
   .strip-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .strip.video .strip-grid { grid-template-columns: 1fr; }
