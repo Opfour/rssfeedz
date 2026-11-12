@@ -201,6 +201,14 @@
     return sections.slice().sort(function (a, b) { return rank(a) - rank(b); });
   }
 
+  function newestOf(section) {
+    var best = 0;
+    for (var i = 0; i < section.entries.length; i++) {
+      if (section.entries[i].published > best) { best = section.entries[i].published; }
+    }
+    return best;
+  }
+
   function renderGrid(data) {
     var html = '', i, since = 0, photoIdx = 0;
     var media = collectMedia(data.sections);
@@ -210,8 +218,11 @@
       else if (IMAGE_OK.test((order[i].domain || '') + ' ' + (order[i].title || ''))) { videoCards.push(order[i]); }
       else { textCards.push(order[i]); }
     }
-    // video cards on one unbroken row, hard-broken above and below so a row
-    // never mixes a video card with a text card
+    // video cards sit on full rows of three, freshest first, never a partial row
+    videoCards.sort(function (a, b) { return newestOf(b) - newestOf(a); });
+    if (videoCards.length >= 3) {
+      videoCards = videoCards.slice(0, Math.floor(videoCards.length / 3) * 3);
+    }
     if (videoCards.length) {
       html += '<div class="rowbreak"></div>';
       for (i = 0; i < videoCards.length; i++) { html += card(videoCards[i]); }

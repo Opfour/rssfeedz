@@ -245,8 +245,17 @@ def fetch_bytes(url):
         "User-Agent": UA,
         "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
     })
-    with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
-        return resp.read(4_000_000)
+    # YouTube serves intermittent 404/500 for its Atom feeds; one retry usually
+    # clears it, and a missing channel would shrink the video row.
+    attempts = 3 if "youtube.com/feeds" in url else 1
+    for attempt in range(attempts):
+        try:
+            with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+                return resp.read(4_000_000)
+        except Exception:
+            if attempt == attempts - 1:
+                raise
+            time.sleep(2 + 2 * attempt)
 
 
 def fetch_one(url):
