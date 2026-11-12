@@ -12,6 +12,7 @@ Usage:
     ./server.py [port]        (default port 8111)
     open http://localhost:8111/
 """
+import calendar
 import json
 import os
 import re
@@ -23,7 +24,7 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import parse_qs, unquote, urlparse
 
 import feedparser
 
@@ -31,6 +32,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 FEEDLIST = os.path.join(HERE, "feedlist.txt")
 STATE_FILE = os.path.join(HERE, "feedcache.json")
 CACHE_TTL = 4 * 3600     # seconds; ?fresh=1 or a browser hard reload bypasses
+STATE_VERSION = 6        # bump when the cached entry shape changes
 MAX_ENTRIES = 40         # per feed
 WORKERS = 16
 TIMEOUT = 8              # per feed, seconds
@@ -51,6 +53,98 @@ _idpattern = re.compile(r"[\W_]+")
 
 def is_reddit(url):
     return "reddit.com" in urlparse(url).netloc.lower()
+
+
+def feed_override(url):
+    """A few feeds need a short label: Reuters arrives through Google News."""
+    plain = unquote(url)
+    if "news.google.com/rss/search" in plain and "site:reuters.com" in plain:
+        return {
+            "title": "Reuters",
+            "link": "https://www.reuters.com/",
+            "domain": "reuters.com",
+            "strip": " - Reuters",
+        }
+    return None
+
+
+def image_is_junk(url):
+    low = url.lower()
+    if low.endswith(".gif") or ".gif?" in low:
+        return True
+    return any(junk in low for junk in (
+        "/emoji/", "twitter_icon", "gravatar", "avatar", "/logo", "logo.", "icon.",
+        "banner_library", "placeholder", "spacer", "pixel", "tracking", "1x1",
+        "doubleclick", "analytics", "feedburner",
+    ))
+
+
+def entry_image(entry):
+    """Best available image for an entry: prefer declared size, then big URL hints."""
+    candidates = []
+    for key in ("media_content", "media_thumbnail"):
+        for media in entry.get(key, []) or []:
+            url = media.get("url")
+            kind = str(media.get("type", ""))
+            if not url:
+                continue
+            if not (kind.startswith("image") or not kind or
+                    url.lower().split("?")[0].endswith((".jpg", ".jpeg", ".png", ".webp", ".gif"))):
+                continue
+            if image_is_junk(url):
+                continue
+            try:
+                width = int(media.get("width") or 0)
+            except (TypeError, ValueError):
+                width = 0
+            if 0 < width < 200:
+                continue
+            candidates.append((width, url))
+    for link in entry.get("links", []) or []:
+        if link.get("rel") == "enclosure" and str(link.get("type", "")).startswith("image"):
+            if not image_is_junk(link.get("href") or ""):
+                candidates.append((0, link.get("href")))
+    if not candidates:
+        blob = ""
+        for block in entry.get("content", []) or []:
+            blob += block.get("value", "") or ""
+        blob += entry.get("summary", "") or ""
+        for match in re.finditer(r'<img[^>]+src=["\']([^"\']+)', blob):
+            if not image_is_junk(match.group(1)):
+                candidates.append((0, match.group(1)))
+                break
+    if not candidates:
+        return None
+
+    def score(item):
+        width, url = item
+        value = width / 1000.0
+        low = url.lower()
+        if any(hint in low for hint in ("1200", "1024", "1600", "1500", "2048", "original", "large")):
+            value += 3
+        if any(hint in low for hint in ("/240/", "thumbnail", "-150x150", "-300x", "/small")):
+            value -= 2
+        return value
+
+    candidates.sort(key=score, reverse=True)
+    return candidates[0][1]
+
+
+def entry_is_video(entry):
+    link = entry.get("link") or ""
+    if "youtube.com/watch" in link or "youtu.be/" in link or "/shorts/" in link:
+        return True
+    video_exts = (".mp4", ".webm", ".mov", ".m3u8")
+    for block in entry.get("media_content", []) or []:
+        url = (block.get("url") or "").lower().split("?")[0]
+        if str(block.get("type", "")).startswith("video") and url.endswith(video_exts):
+            return True
+    for link2 in entry.get("links", []) or []:
+        url = (link2.get("href") or "").lower().split("?")[0]
+        if link2.get("rel") == "enclosure" and str(link2.get("type", "")).startswith("video") \
+                and url.endswith(video_exts):
+            return True
+    return False
 
 
 def reddit_label(url):
@@ -84,6 +178,8 @@ def source_key(url):
         return host + urlparse(url).path.lower()
     if "youtube.com" in host:
         return url.lower()
+    if "news.google.com" in host:
+        return url.lower()
     if "feedburner" in host or "feedproxy" in host:
         return url.lower()
     return site_domain(url)
@@ -106,6 +202,8 @@ def load_state():
     try:
         with open(STATE_FILE) as fh:
             data = json.load(fh)
+        if data.get("version") != STATE_VERSION:
+            return  # entries from before images/video, refetch instead
         if isinstance(data.get("sections"), dict):
             _state["sections"] = data["sections"]
         _state["cursor"] = int(data.get("cursor", 0))
@@ -115,9 +213,11 @@ def load_state():
 
 def save_state():
     tmp = STATE_FILE + ".tmp"
+    payload = dict(_state)
+    payload["version"] = STATE_VERSION
     try:
         with open(tmp, "w") as fh:
-            json.dump(_state, fh)
+            json.dump(payload, fh)
         os.replace(tmp, STATE_FILE)
     except Exception as exc:
         sys.stderr.write("state save failed: %s\n" % exc)
@@ -159,20 +259,36 @@ def fetch_one(url):
         feed = feed if isinstance(feed, dict) else {}
         title = str(feed.get("title") or "").strip() or urlparse(url).netloc
         link = str(feed.get("link") or url).strip()
+        override = feed_override(url)
+        if override:
+            title, link = override["title"], override["link"]
         entries = []
         raw_entries = parsed.get("entries") if isinstance(parsed, dict) else []
         for e in (raw_entries or [])[:MAX_ENTRIES]:
             t = str(e.get("title") or "").strip()
             l = str(e.get("link") or "").strip()
+            if override and override.get("strip"):
+                t = t.replace(override["strip"], "").strip()
             if t and l:
-                entries.append({"title": t, "link": l})
+                stamp = e.get("published_parsed") or e.get("updated_parsed")
+                try:
+                    published = calendar.timegm(stamp) if stamp else None
+                except Exception:
+                    published = None
+                entries.append({
+                    "title": t,
+                    "link": l,
+                    "image": entry_image(e),
+                    "video": entry_is_video(e),
+                    "published": published,
+                })
         if not entries:
             return url, None
         return url, {
             "id": _idpattern.sub("", title.replace(" ", "")),
             "title": title,
             "link": link,
-            "domain": site_domain(link or url),
+            "domain": override["domain"] if override else site_domain(link or url),
             "entries": entries,
         }
     except Exception as exc:
@@ -259,11 +375,11 @@ def get_payload(force=False):
         return out
 
 
-def warm_reddit():
-    """Reddit allows about one anonymous .rss fetch per window, so fill the
-    missing subreddits slowly at startup instead of failing a burst."""
-    feeds = [u for u in load_feeds() if is_reddit(u)]
-    for url in feeds:
+def warm_missing():
+    """Fill feeds that failed during startup: Reddit needs a slow trickle, the
+    rest just need one more try with a pause."""
+    feeds = load_feeds()
+    for url in [u for u in feeds if is_reddit(u)]:
         if url in _state["sections"]:
             continue
         _, section = fetch_one(url)
@@ -271,6 +387,14 @@ def warm_reddit():
             _state["sections"][url] = section
             save_state()
         time.sleep(REDDIT_WARM_DELAY)
+    for url in feeds:
+        if url in _state["sections"]:
+            continue
+        _, section = fetch_one(url)
+        if section:
+            _state["sections"][url] = section
+            save_state()
+        time.sleep(3)
     with _lock:
         _cache["at"] = 0.0  # rebuild once so the page includes what we collected
 
@@ -335,7 +459,7 @@ def main():
 
     def startup():
         get_payload(force=True)
-        warm_reddit()
+        warm_missing()
 
     threading.Thread(target=startup, daemon=True).start()
     srv = ThreadingHTTPServer(("127.0.0.1", port), Handler)

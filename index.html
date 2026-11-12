@@ -6,133 +6,303 @@
   <title>Feed Court</title>
   <link rel="stylesheet" type="text/css" href="feedcourt.css">
   <link href="apple-touch-icon.png" rel="apple-touch-icon">
-  <link href="apple-touch-icon-76x76.png" rel="apple-touch-icon" sizes="76x76">
-  <link href="apple-touch-icon-120x120.png" rel="apple-touch-icon" sizes="120x120">
-  <link href="apple-touch-icon-152x152.png" rel="apple-touch-icon" sizes="152x152">
-  <link href="apple-touch-icon-180x180.png" rel="apple-touch-icon" sizes="180x180">
   <link href="icon-hires.png" rel="icon" sizes="192x192">
   <link href="icon-normal.png" rel="icon" sizes="128x128">
-  <style>
-    #status { color: #777; }
-    #status.error { color: #de4e1c; max-width: 44rem; line-height: 1.5; }
-    #status code { color: #aeaeae; }
-  </style>
 </head>
 <body>
-  <div id="header">
-    <h1>Feed Court</h1>
-    <p> | a wall of text rss aggregator | updated: <span id="utcupdate">loading</span> |
-      <span class="sorter" id="viewlink"></span>
-      <span class="sorter"><a href="#" id="refresh"> refresh </a></span>
-    </p>
-  </div>
-  <div id="status">pulling feeds...</div>
-  <div id="wrapper"></div>
+  <header class="top">
+    <div class="brand">Feed Court</div>
+    <nav class="views">
+      <a href="./" class="on">grid</a>
+      <a href="./?view=jumble">wire</a>
+      <a href="#" id="refresh">refresh</a>
+    </nav>
+    <div class="stamp"><span id="status">pulling feeds</span></div>
+  </header>
+
+  <div class="ticker" id="ticker"></div>
+
+  <main id="grid" class="grid"></main>
+
+  <footer class="foot">
+    <span id="updated">loading</span> ·
+    <a href="https://github.com/Opfour/rssfeedz">source</a>
+  </footer>
 
 <script>window.__freshBoot = (function(){ try { return __FRESH_BOOT__; } catch (e) { return false; } })();</script>
 <script>
 (function () {
-  var view = /(\?|&)view=jumble/.test(location.search) ? 'jumble' : 'sort';
+  var view = /(\?|&)view=jumble/.test(location.search) ? 'wire' : 'grid';
   var statusEl = document.getElementById('status');
-  var wrapper = document.getElementById('wrapper');
-  var stamp = document.getElementById('utcupdate');
-  var viewlink = document.getElementById('viewlink');
+  var gridEl = document.getElementById('grid');
+  var tickerEl = document.getElementById('ticker');
+  var updatedEl = document.getElementById('updated');
+  var THUMB_ROWS = 2;      // rows near the top of a card that get a thumbnail
+  var VISIBLE_ROWS = 6;     // rows shown before "more"
 
   function esc(s) {
-    return String(s).replace(/[&<>"']/g, function (c) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
       return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c];
     });
   }
 
-  function siteId(s) { return String(s).replace(/\s+/g, '').replace(/[\W_]+/g, ''); }
-
-  function renderSort(sections) {
-    var html = '';
-    for (var i = 0; i < sections.length; i++) {
-      var s = sections[i];
-      var dom = s.domain || '';
-      var label = (dom && s.title.toLowerCase().indexOf(dom.toLowerCase()) === -1)
-        ? s.title + ' (' + dom + ')'
-        : s.title;
-      var id = siteId(s.title + dom);
-      html += "<div class='section' id='" + esc(id) + "'>" +
-              "<div class='section_head'>" +
-              "<h2><a href='" + esc(s.link) + "'>" + esc(label) + "</a></h2>" +
-              "<div class='more' id='more" + esc(id) + "'> more </div>" +
-              "</div>";
-      for (var j = 0; j < s.entries.length; j++) {
-        var e = s.entries[j];
-        html += "<div class='entry'><a href='" + esc(e.link) + "' target='_blank'>" +
-                esc(e.title) + "</a></div>";
-      }
-      html += "</div>";
-    }
-    wrapper.className = '';
-    wrapper.id = 'wrapper';
-    wrapper.innerHTML = html;
+  function hue(s) {
+    var h = 0;
+    for (var i = 0; i < s.length; i++) { h = (h * 31 + s.charCodeAt(i)) % 360; }
+    return h;
   }
 
-  function renderJumble(sections) {
-    var rows = [];
+  function badge(domain, title) {
+    var letter = (domain || title || '?').replace(/^www\./, '').charAt(0).toUpperCase();
+    return '<span class="badge" style="background:hsl(' + hue(domain || title) +
+           ',55%,42%)">' + esc(letter) + '</span>';
+  }
+
+  function ago(ts) {
+    if (!ts) { return ''; }
+    var mins = Math.max(0, Math.round((Date.now() / 1000 - ts) / 60));
+    if (mins < 60) { return mins + 'm'; }
+    if (mins < 1440) { return Math.round(mins / 60) + 'h'; }
+    return Math.round(mins / 1440) + 'd';
+  }
+
+  function imgTag(src, cls, eager) {
+    return '<img class="' + cls + '" ' + (eager ? '' : 'loading="lazy" ') +
+           'decoding="async" referrerpolicy="no-referrer" src="' + esc(src) +
+           '" alt="" onerror="this.style.visibility=\'hidden\'">';
+  }
+
+  function rowsFor(section) {
+    var rows = '';
+    var entries = section.entries;
+    for (var i = 0; i < entries.length; i++) {
+      var e = entries[i];
+      var thumb = (i < THUMB_ROWS && e.image) ? imgTag(e.image, 'thumb') : '';
+      var hidden = i >= VISIBLE_ROWS ? ' class="row extra"' : ' class="row"';
+      rows += '<a' + hidden + ' href="' + esc(e.link) + '" target="_blank" rel="noopener">' +
+              '<span class="row-t">' + esc(e.title) + '</span>' +
+              (e.video ? '<span class="play" title="video">▶</span>' : '') +
+              thumb + '</a>';
+    }
+    return rows;
+  }
+
+  function leadFor(section) {
+    for (var i = 0; i < section.entries.length; i++) {
+      if (section.entries[i].image) { return i; }
+    }
+    return -1;
+  }
+
+  function card(section) {
+    var lead = leadFor(section);
+    var head = '<div class="card-head">' + badge(section.domain, section.title) +
+      '<h2><a href="' + esc(section.link) + '">' + esc(section.title) +
+      (section.domain ? '<span class="dom">' + esc(section.domain) + '</span>' : '') +
+      '</a></h2>' +
+      (section.entries.length > VISIBLE_ROWS ? '<button class="more" type="button">more</button>' : '') +
+      '</div>';
+
+    var leadHtml = '';
+    var entries = section.entries;
+    if (lead >= 0) {
+      var e = entries[lead];
+      leadHtml = '<a class="lead" href="' + esc(e.link) + '" target="_blank" rel="noopener">' +
+        imgTag(e.image, 'lead-img') + '<span class="lead-t">' + esc(e.title) + '</span></a>';
+      entries = entries.slice(0, lead).concat(entries.slice(lead + 1));
+    }
+
+    var rows = '';
+    for (var i = 0; i < entries.length; i++) {
+      var x = entries[i];
+      var thumb = (i < THUMB_ROWS && x.image) ? imgTag(x.image, 'thumb') : '';
+      rows += '<a class="row' + (i >= VISIBLE_ROWS ? ' extra' : '') + '" href="' + esc(x.link) +
+              '" target="_blank" rel="noopener"><span class="row-t">' + esc(x.title) + '</span>' +
+              (x.video ? '<span class="play" title="video">▶</span>' : '') + thumb + '</a>';
+    }
+
+    return '<article class="card" data-id="' + esc(section.id) + '">' + head + leadHtml +
+           '<div class="rows">' + rows + '</div></article>';
+  }
+
+  function reutersCard(section) {
+    var entries = section.entries.slice();
+    var lead = null, rest = [];
+    for (var i = 0; i < entries.length; i++) {
+      if (!lead && entries[i].image) { lead = entries[i]; } else { rest.push(entries[i]); }
+    }
+    var html = '<article class="card wide reuters' + (lead ? '' : ' noimg') + '">' +
+      '<div class="card-head">' + badge(section.domain, section.title) +
+      '<h2><a href="' + esc(section.link) + '">' + esc(section.title) +
+      '<span class="dom">' + esc(section.domain) + '</span></a></h2></div>' +
+      '<div class="reuters-body">';
+    if (lead) {
+      html += '<a class="reuters-lead" href="' + esc(lead.link) + '" target="_blank" rel="noopener">' +
+        imgTag(lead.image, 'lead-img') + '<span class="lead-t">' + esc(lead.title) + '</span>' +
+        '<span class="when">' + ago(lead.published) + '</span></a>';
+    }
+    html += '<div class="reuters-list">';
+    for (var j = 0; j < rest.length && j < 18; j++) {
+      var e = rest[j];
+      html += '<a class="wire-row" href="' + esc(e.link) + '" target="_blank" rel="noopener">' +
+        '<span class="when">' + ago(e.published) + '</span>' +
+        '<span class="row-t">' + esc(e.title) + '</span></a>';
+    }
+    html += '</div></div></article>';
+    return html;
+  }
+
+  function collectMedia(sections) {
+    var buckets = [], videos = [], seen = {};
     for (var i = 0; i < sections.length; i++) {
       var s = sections[i];
+      var bucket = [];
       for (var j = 0; j < s.entries.length; j++) {
         var e = s.entries[j];
-        rows.push("<span class='jumble'> <a href='" + esc(e.link) + "' target='_blank'>" +
-                  esc(e.title) + "</a><span class='jumblesite'><a href='" + esc(s.link) +
-                  "'> ( " + esc(s.domain || s.title) + " ) </a></span></span> | ");
+        if (!e.image) { continue; }
+        var item = {img: e.image, link: e.link, title: e.title,
+                    src: s.domain || s.title, video: !!e.video};
+        if (e.video) { videos.push(item); }
+        if (bucket.length < 2) { bucket.push(item); }
+      }
+      buckets.push(bucket);
+    }
+    // round robin across sections so a strip is never all one publisher
+    var photos = [], depth = 0, added = true;
+    while (added) {
+      added = false;
+      for (var k = 0; k < buckets.length; k++) {
+        var it = buckets[k][depth];
+        if (it && !seen[it.img]) { seen[it.img] = 1; photos.push(it); added = true; }
+        else if (it) { added = true; }
+      }
+      depth++;
+      if (depth > 4) { break; }
+    }
+    return {photos: photos, videos: videos};
+  }
+
+  function strip(items, kind) {
+    var cells = '';
+    for (var i = 0; i < items.length; i++) {
+      var it = items[i];
+      cells += '<a class="shot' + (kind === 'video' ? ' vid' : '') + '" href="' + esc(it.link) +
+        '" target="_blank" rel="noopener">' + imgTag(it.img, 'shot-img', true) +
+        '<span class="cap">' + esc(it.title) + '</span>' +
+        '<span class="cap-src">' + esc(it.src) + '</span>' +
+        (kind === 'video' ? '<span class="play big">▶</span>' : '') + '</a>';
+    }
+    return '<section class="strip ' + kind + '"><div class="strip-head">' +
+      (kind === 'video' ? 'video' : 'photos') + '</div><div class="strip-grid">' + cells + '</div></section>';
+  }
+
+  function ordered(sections) {
+    return sections.slice().sort(function (a, b) {
+      var ra = /reuters/i.test(a.domain + a.title) ? 0 : 1;
+      var rb = /reuters/i.test(b.domain + b.title) ? 0 : 1;
+      return ra - rb;
+    });
+  }
+
+  function renderGrid(data) {
+    var html = '', since = 0, photoIdx = 0, videoDone = false;
+    var media = collectMedia(data.sections);
+    var order = ordered(data.sections);
+    for (var i = 0; i < order.length; i++) {
+      var s = order[i];
+      html += /reuters/i.test(s.domain + s.title) ? reutersCard(s) : card(s);
+      since++;
+      var due = since === 3 || since === 9;
+      if (due && photoIdx < media.photos.length) {
+        html += strip(media.photos.slice(photoIdx, photoIdx + 5), 'photos');
+        photoIdx += 5;
+        if (!videoDone && media.videos.length >= 2) {
+          html += strip(media.videos.slice(0, 3), 'video');
+          videoDone = true;
+        }
+        since = 0;
+      }
+    }
+    if (photoIdx < media.photos.length) {
+      html += strip(media.photos.slice(photoIdx, photoIdx + 5), 'photos');
+    }
+    gridEl.className = 'grid';
+    gridEl.innerHTML = html;
+  }
+
+  function renderWire(data) {
+    var rows = [];
+    for (var i = 0; i < data.sections.length; i++) {
+      for (var j = 0; j < data.sections[i].entries.length; j++) {
+        rows.push({e: data.sections[i].entries[j], s: data.sections[i]});
       }
     }
     for (var k = rows.length - 1; k > 0; k--) {
       var m = Math.floor(Math.random() * (k + 1));
-      var tmp = rows[k]; rows[k] = rows[m]; rows[m] = tmp;
+      var t = rows[k]; rows[k] = rows[m]; rows[m] = t;
     }
-    wrapper.className = 'jumblewrapper';
-    wrapper.id = 'jumblewrapper';
-    wrapper.innerHTML = rows.join('');
+    var html = '';
+    for (var n = 0; n < rows.length; n++) {
+      var r = rows[n];
+      html += '<a class="wire-row" href="' + esc(r.e.link) + '" target="_blank" rel="noopener">' +
+        '<span class="wire-src">' + esc(r.s.domain || r.s.title) + '</span>' +
+        '<span class="row-t">' + esc(r.e.title) + '</span>' +
+        (r.e.video ? '<span class="play">▶</span>' : '') + '</a>';
+    }
+    gridEl.className = 'wire';
+    gridEl.innerHTML = html;
   }
 
-  function showHeader(data) {
-    stamp.textContent = data.updated;
-    var bits = [data.feeds_ok + ' of ' + data.feeds_total + ' feeds'];
-    if (data.stale) { bits.push(data.stale + ' stale'); }
-    if (data.failed.length) { bits.push(data.failed.length + ' unavailable'); }
+  var NEWS = /reuters|cnn|bbc|nytimes|guardian|npr|apnews|washingtonpost|wsj|aljazeera|axios|politico|thehill/i;
+
+  function renderTicker(data) {
+    var items = [], order = ordered(data.sections), i, s;
+    for (i = 0; i < order.length && items.length < 8; i++) {
+      s = order[i];
+      if (!NEWS.test(s.domain) || !s.entries.length) { continue; }
+      items.push('<a href="' + esc(s.entries[0].link) + '" target="_blank">' + esc(s.entries[0].title) + '</a>');
+    }
+    for (i = 0; i < order.length && items.length < 8; i++) {
+      s = order[i];
+      if (!s.entries.length || NEWS.test(s.domain)) { continue; }
+      items.push('<a href="' + esc(s.entries[0].link) + '" target="_blank">' + esc(s.entries[0].title) + '</a>');
+    }
+    tickerEl.innerHTML = items.join('<span class="sep">·</span>');
+  }
+
+  function showStatus(data) {
+    var bits = [data.feeds_ok + '/' + data.feeds_total + ' feeds'];
+    if (data.failed.length) { bits.push(data.failed.length + ' down'); }
     bits.push(data.elapsed + 's');
-    statusEl.className = '';
-    statusEl.textContent = bits.join(' \u00b7 ');
+    statusEl.textContent = bits.join(' · ');
     statusEl.title = data.failed.join('\n');
-    viewlink.innerHTML = view === 'jumble'
-      ? "<a href='./'> sort </a>"
-      : "<a href='./?view=jumble'> jumble </a>";
+    updatedEl.textContent = new Date(data.updated).toLocaleString();
   }
 
   function load(force) {
-    statusEl.className = '';
-    statusEl.textContent = 'pulling feeds...';
-    stamp.textContent = 'loading';
+    statusEl.textContent = 'pulling feeds';
     var url = 'api/feeds' + (force ? '?fresh=1' : '');
-    var started = Date.now();
     fetch(url, {cache: 'no-store'})
-      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (r) { if (!r.ok) { throw new Error('HTTP ' + r.status); } return r.json(); })
       .then(function (data) {
-        showHeader(data);
-        if (view === 'jumble') { renderJumble(data.sections); }
-        else { renderSort(data.sections); }
-        if (typeof loadroutine === 'function') { loadroutine(); }
-        if (force) { statusEl.textContent += ' (' + ((Date.now() - started) / 1000).toFixed(1) + 's)'; }
+        showStatus(data);
+        renderTicker(data);
+        if (view === 'wire') { renderWire(data); } else { renderGrid(data); }
       })
       .catch(function (err) {
-        statusEl.className = 'error';
-        if (location.protocol === 'file:') {
-          statusEl.innerHTML = 'This page needs the little server, because browsers block ' +
-            'cross-site feed reads. In a terminal: <code>cd ~/rssfeedz &amp;&amp; ' +
-            './server.py</code>, then open <code>http://localhost:8111/</code>.';
-        } else {
-          statusEl.textContent = 'Could not reach the feed server: ' + err.message +
-            '. Is ./server.py still running?';
-        }
+        statusEl.textContent = location.protocol === 'file:'
+          ? 'needs the local server: cd ~/rssfeedz && ./server.py, then open http://localhost:8111/'
+          : 'feed server unreachable: ' + err.message;
       });
   }
+
+  gridEl.addEventListener('click', function (ev) {
+    var btn = ev.target.closest ? ev.target.closest('.more') : null;
+    if (!btn) { return; }
+    var cardEl = btn.closest('.card');
+    var expanded = cardEl.classList.toggle('open');
+    btn.textContent = expanded ? 'less' : 'more';
+  });
 
   document.getElementById('refresh').addEventListener('click', function (ev) {
     ev.preventDefault();
@@ -142,6 +312,5 @@
   load(!!window.__freshBoot);
 })();
 </script>
-<script src="feedcourt.js" type="text/javascript"></script>
 </body>
 </html>
