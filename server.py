@@ -40,6 +40,10 @@ REDDIT_PER_BUILD = 2     # reddit.com throttles anonymous .rss hard
 COOLDOWN = 180           # seconds before retrying a failed feed
 REDDIT_COOLDOWN = 300
 REDDIT_WARM_DELAY = 20   # seconds between startup Reddit fetches
+# feed titles that read badly next to their domain badge
+TITLE_FIX = {
+    "Us - CBSNews.com": "CBS News US",
+}
 WARM_REDDIT_PER_CYCLE = 3  # subreddits retried per warm cycle, keeps 429s away
 UA = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
       "Chrome/131.0.0.0 Safari/537.36")
@@ -283,6 +287,7 @@ def fetch_one(url):
         feed = parsed.get("feed") if isinstance(parsed, dict) else None
         feed = feed if isinstance(feed, dict) else {}
         title = str(feed.get("title") or "").strip() or urlparse(url).netloc
+        title = TITLE_FIX.get(title, title)
         link = str(feed.get("link") or url).strip()
         override = feed_override(url)
         if override:

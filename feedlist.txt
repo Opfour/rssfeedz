@@ -9,7 +9,7 @@ https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml
 https://www.theguardian.com/world/rss
 https://feeds.npr.org/1001/rss.xml
 https://www.aljazeera.com/xml/rss/all.xml
-https://feeds.washingtonpost.com/rss/national
+https://www.cbsnews.com/latest/rss/us
 https://feeds.feedburner.com/TheAtlantic
 https://www.newyorker.com/feed/everything
 http://www.phoronix.com/rss.php
