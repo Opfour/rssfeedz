@@ -32,7 +32,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 FEEDLIST = os.path.join(HERE, "feedlist.txt")
 STATE_FILE = os.path.join(HERE, "feedcache.json")
 CACHE_TTL = 4 * 3600     # seconds; ?fresh=1 or a browser hard reload bypasses
-STATE_VERSION = 6        # bump when the cached entry shape changes
+STATE_VERSION = 7        # bump when the cached entry shape changes
 MAX_ENTRIES = 40         # per feed
 WORKERS = 16
 TIMEOUT = 8              # per feed, seconds
@@ -40,6 +40,7 @@ REDDIT_PER_BUILD = 2     # reddit.com throttles anonymous .rss hard
 COOLDOWN = 180           # seconds before retrying a failed feed
 REDDIT_COOLDOWN = 300
 REDDIT_WARM_DELAY = 20   # seconds between startup Reddit fetches
+WARM_REDDIT_PER_CYCLE = 3  # subreddits retried per warm cycle, keeps 429s away
 UA = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
       "Chrome/131.0.0.0 Safari/537.36")
 
@@ -82,8 +83,12 @@ def image_is_junk(url):
         return True
     return any(junk in low for junk in (
         "/emoji/", "twitter_icon", "gravatar", "avatar", "/logo", "logo.", "icon.",
-        "banner_library", "placeholder", "spacer", "pixel", "tracking", "1x1",
-        "doubleclick", "analytics", "feedburner",
+        "banner_library", "placeholder", "spacer", "1x1", "tracking", "doubleclick",
+        "analytics", "feedburner",
+        # pixel only as a tracking-pixel filename, never as part of a host name
+        # such as petapixel.com
+        "pixel.gif", "pixel.png", "pixel.jpg", "pixel.jpeg", "pixel.webp",
+        "/pixel?", "_pixel.", "-pixel.", "tracking_pixel", "clear.gif",
     ))
 
 
@@ -255,7 +260,7 @@ def fetch_bytes(url):
         except Exception:
             if attempt == attempts - 1:
                 raise
-            time.sleep(2 + 2 * attempt)
+            time.sleep(5 + 10 * attempt)
 
 
 def fetch_one(url):
@@ -393,18 +398,29 @@ def get_payload(force=False):
         return out
 
 
+_warm_reddit_cursor = 0
+
+
 def warm_missing():
-    """Fill feeds that failed during startup: Reddit needs a slow trickle, the
-    rest just need one more try with a pause."""
+    """Retry feeds that have no cached section. Reddit is retried a few at a
+    time because anonymous .rss rate limits by IP, and one burst of sixteen
+    subreddits just earns a wall of 429s. Returns how many were recovered."""
+    global _warm_reddit_cursor
     feeds = load_feeds()
-    for url in [u for u in feeds if is_reddit(u)]:
-        if url in _state["sections"]:
-            continue
-        _, section = fetch_one(url)
-        if section:
-            _state["sections"][url] = section
-            save_state()
-        time.sleep(REDDIT_WARM_DELAY)
+    added = 0
+    missing_reddit = [u for u in feeds if is_reddit(u) and u not in _state["sections"]]
+    if missing_reddit:
+        count = min(WARM_REDDIT_PER_CYCLE, len(missing_reddit))
+        start = _warm_reddit_cursor % len(missing_reddit)
+        for i in range(count):
+            url = missing_reddit[(start + i) % len(missing_reddit)]
+            _, section = fetch_one(url)
+            if section:
+                _state["sections"][url] = section
+                save_state()
+                added += 1
+            time.sleep(REDDIT_WARM_DELAY)
+        _warm_reddit_cursor = (start + count) % len(missing_reddit)
     for url in feeds:
         if url in _state["sections"]:
             continue
@@ -412,9 +428,12 @@ def warm_missing():
         if section:
             _state["sections"][url] = section
             save_state()
+            added += 1
         time.sleep(3)
-    with _lock:
-        _cache["at"] = 0.0  # rebuild once so the page includes what we collected
+    if added:
+        with _lock:
+            _cache["at"] = 0.0  # rebuild once so the page includes what we collected
+    return added
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -477,7 +496,11 @@ def main():
 
     def startup():
         get_payload(force=True)
-        warm_missing()
+        # keep retrying feeds that failed: YouTube 404s and Reddit 429s clear on
+        # their own, and a missing channel leaves a hole in a video row
+        while True:
+            warm_missing()
+            time.sleep(600)
 
     threading.Thread(target=startup, daemon=True).start()
     srv = ThreadingHTTPServer(("127.0.0.1", port), Handler)

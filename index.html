@@ -38,9 +38,11 @@
   var tickerEl = document.getElementById('ticker');
   var updatedEl = document.getElementById('updated');
   var VISIBLE_ROWS = 6;     // rows shown before "more"
-  // Only image-first and video-first sources get art. Every news, tech, magazine
-  // and subreddit feed renders as text, so the wall stays typographic.
-  var IMAGE_OK = /youtube|youtu\.be|vimeo|flickr|instagram|bigpicture|in-?focus|photo/i;
+  // Video-first sources get a card with one frame. Photo-first sources are
+  // never rendered as cards: they only feed the scattered photo strips.
+  var IMAGE_OK = /youtube|youtu\.be|vimeo/i;
+  var PHOTO = /petapixel|colossal|universetoday|spaceporn|earthporn|r\/pics|flickr|imgur|apod|photo/i;
+  var INSERT_EVERY = 12;    // text cards between full-width rows, must be a multiple of 3
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -75,7 +77,7 @@
   }
 
   function leadFor(section) {
-    if (!IMAGE_OK.test((section.domain || '') + ' ' + (section.title || ''))) { return -1; }
+    if (!isVideo(section)) { return -1; }
     for (var i = 0; i < section.entries.length; i++) {
       if (section.entries[i].image) { return i; }
     }
@@ -115,7 +117,7 @@
   function wireCard(section) {
     var entries = section.entries.slice();
     var lead = null, rest = [];
-    var allowArt = IMAGE_OK.test((section.domain || '') + ' ' + (section.title || ''));
+    var allowArt = isVideo(section);
     for (var i = 0; i < entries.length; i++) {
       if (allowArt && !lead && entries[i].image) { lead = entries[i]; } else { rest.push(entries[i]); }
     }
@@ -140,18 +142,24 @@
     return html;
   }
 
+  function sectionKey(section) {
+    return (section.domain || '') + ' ' + (section.title || '');
+  }
+  function isPhoto(section) { return PHOTO.test(sectionKey(section)); }
+  function isVideo(section) { return IMAGE_OK.test(sectionKey(section)); }
+
   function collectMedia(sections) {
     var buckets = [], seen = {};
     for (var i = 0; i < sections.length; i++) {
       var s = sections[i];
       var bucket = [];
-      if (!IMAGE_OK.test((s.domain || '') + ' ' + (s.title || ''))) { buckets.push(bucket); continue; }
+      if (!isPhoto(s)) { buckets.push(bucket); continue; }
       for (var j = 0; j < s.entries.length; j++) {
         var e = s.entries[j];
-        if (!e.image || e.video) { continue; }
+        if (!e.image) { continue; }
         var item = {img: e.image, link: e.link, title: e.title,
-                    src: s.domain || s.title, video: false};
-        if (bucket.length < 2) { bucket.push(item); }
+                    src: s.domain || s.title, video: !!e.video};
+        if (bucket.length < 4) { bucket.push(item); }
       }
       buckets.push(bucket);
     }
@@ -209,36 +217,57 @@
     return best;
   }
 
+  function videoRow(cards) {
+    var html = '<div class="rowbreak"></div>';
+    for (var i = 0; i < cards.length; i++) { html += card(cards[i]); }
+    return html + '<div class="rowbreak"></div>';
+  }
+
   function renderGrid(data) {
-    var html = '', i, since = 0, photoIdx = 0;
-    var media = collectMedia(data.sections);
+    var html = '', i, since = 0, vi = 0, pi = 0, turn = 0;
+    var media = collectMedia(data.sections), photos = media.photos;
     var order = ordered(data.sections), textCards = [], videoCards = [];
     for (i = 0; i < order.length; i++) {
-      if (hasWire(order[i])) { html += wireCard(order[i]); }
-      else if (IMAGE_OK.test((order[i].domain || '') + ' ' + (order[i].title || ''))) { videoCards.push(order[i]); }
-      else { textCards.push(order[i]); }
+      var s = order[i];
+      if (hasWire(s)) { html += wireCard(s); }
+      else if (isPhoto(s)) { continue; }        // photo feeds only feed the strips
+      else if (isVideo(s)) { videoCards.push(s); }
+      else { textCards.push(s); }
     }
-    // video cards sit on full rows of three, freshest first, never a partial row
+    // video cards are dealt in rows of three, freshest first, never a partial row
     videoCards.sort(function (a, b) { return newestOf(b) - newestOf(a); });
     if (videoCards.length >= 3) {
       videoCards = videoCards.slice(0, Math.floor(videoCards.length / 3) * 3);
     }
-    if (videoCards.length) {
-      html += '<div class="rowbreak"></div>';
-      for (i = 0; i < videoCards.length; i++) { html += card(videoCards[i]); }
-      html += '<div class="rowbreak"></div>';
-    }
+
+    // only take as many photos as the wall has slots for, otherwise the tail
+    // loop would stack every leftover image at the bottom of the page
+    var slots = Math.ceil(textCards.length / INSERT_EVERY / 2) + 1;
+    photos = photos.slice(0, slots * 5);
+
+    // text wall, with a photo strip or a video row every INSERT_EVERY cards so
+    // media is scattered down the page instead of stacked at the top
     for (i = 0; i < textCards.length; i++) {
       html += card(textCards[i]);
       since++;
-      if (since === 6 && photoIdx < media.photos.length) {
-        html += strip(media.photos.slice(photoIdx, photoIdx + 5), 'photos');
-        photoIdx += 5;
+      if (since === INSERT_EVERY) {
         since = 0;
+        var wantPhoto = turn % 2 === 0;
+        if (wantPhoto && pi < photos.length) {
+          html += strip(photos.slice(pi, pi + 5), 'photos'); pi += 5;
+        } else if (!wantPhoto && vi < videoCards.length) {
+          html += videoRow(videoCards.slice(vi, vi + 3)); vi += 3;
+        } else if (pi < photos.length) {
+          html += strip(photos.slice(pi, pi + 5), 'photos'); pi += 5;
+        } else if (vi < videoCards.length) {
+          html += videoRow(videoCards.slice(vi, vi + 3)); vi += 3;
+        }
+        turn++;
       }
     }
-    if (photoIdx < media.photos.length) {
-      html += strip(media.photos.slice(photoIdx, photoIdx + 5), 'photos');
+    while (vi < videoCards.length) { html += videoRow(videoCards.slice(vi, vi + 3)); vi += 3; }
+    while (pi < photos.length) {
+      html += strip(photos.slice(pi, pi + 5), 'photos'); pi += 5;
     }
     gridEl.className = 'grid';
     gridEl.innerHTML = html;
